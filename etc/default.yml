@@ -1,0 +1,201 @@
+name: "Garg"
+
+default_email: "@goevive.com" 
+
+service_accounts: [
+  'datareceipts@goevive.com',
+  'super.g2@goevive.com',
+  'alerts_noreply@evivehealth.com',
+  'alerts_reports@goevive.com',
+  'alertsupport@evivehealth.com',
+  'audit.aws@goevive.com',
+  'aws.adobe1@goevive.com',
+  'aws.adobe2@goevive.com',
+  'datareceipts@goevive.com',
+  'dev_alert_noreply@evivehealth.com',
+  'devenv.aws@goevive.com',
+  'evive-id@goevive.com',
+  'evive.care@goevive.com',
+  'evive.number@goevive.com',
+  'evive.qatest@goevive.com',
+  'eviveapi@goevive.com',
+  'ex-evivians@goevive.com',
+  'git.user@goevive.com',
+  'prod_alert_noreply@evivehealth.com',
+  'q.test@goevive.com',
+  'recaptcha@goevive.com',
+  'sec.aws@goevive.com',
+  'sharedservices.aws@goevive.com',
+  'super.g2@goevive.com',
+  'super.g3@goevive.com',
+  'uat-help@goevive.com',
+  'uat_alert_noreply@evivehealth.com',
+  'uatenv.aws@goevive.com',
+  'voicemail@evivehealth.com',
+  'zoom.c@goevive.com',
+  'zoom.w@goevive.com',
+  'logarchive.aws@goevive.com',
+  'master.aws@goevive.com',
+  'mavenlink.admin@goevive.com',
+  'myevive-help@goevive.com',
+  'portal@evivehealth.com',
+  'posh@goevive.com',
+  '4interview@goevive.com',
+  'MemberServices@goevive.com',
+  'alerts_noreply@evivehealth.com',
+  'alerts_reports@goevive.com',
+  'alertsupport@evivehealth.com',
+  'analytics.aws@goevive.com',
+  'audit.aws@goevive.com',
+  'aws.adobe1@goevive.com',
+  'aws.adobe2@goevive.com',
+  'cleanroomtestuser@goevive.com',
+  'croom_alert_noreply@goevive.com',
+  'cust-help@goevive.com',
+  'databaseadmin@goevive.com',
+  'datareceipts@goevive.com',
+  'dev_alert_noreply@evivehealth.com',
+  'devcloud_alert_noreply@evivehealth.com',
+  'devenv.aws@goevive.com',
+  'evive-id@goevive.com',
+  'evive.care@goevive.com',
+  'evive.number@goevive.com',
+  'evive.qatest@goevive.com',
+  'eviveapi@goevive.com',
+  'ex-evivians@goevive.com',
+  'git.user@goevive.com',
+  'hcsc-support@goevive.com',
+  'hirewell@goevive.com',
+  'integration@goevive.com',
+  'jenkins@evivehealth.com',
+  'jira.token@goevive.com',
+  'logarchive.aws@goevive.com',
+  'luciano.tovar@goevive.com',
+  'master.aws@goevive.com',
+  'mavenlink.admin@goevive.com',
+  'myevive-help@goevive.com',
+  'pcmsi_extensions@goevive.com',
+  'pelleg.graupe@goevive.com',
+  'portal@evivehealth.com',
+  'posh@goevive.com',
+  'prod_alert_noreply@evivehealth.com',
+  'q.test@goevive.com',
+  'recaptcha@goevive.com',
+  'receptionist@goevive.com',
+  'sec.aws@goevive.com',
+  'sharedservices.aws@goevive.com',
+  'super.g2@goevive.com',
+  'super.g3@goevive.com',
+  'super.g@goevive.com',
+  'test.user@goevive.com',
+  'uat-help@goevive.com',
+  'uat_alert_noreply@evivehealth.com',
+  'uatenv.aws@goevive.com',
+  'voicemail@evivehealth.com',
+  'webmaster@goevive.com',
+  'youtube@goevive.com',
+  'zoom.c@goevive.com',
+  'zoom.w@goevive.com',
+  'admin@1337914.zscalerthree.net',
+  'admin@goevive.com',
+  'zscaler.se@goevive.com',
+  'uat_master@goevive.com'
+]
+
+
+function_redirection:
+
+  # string given by user : function name
+  
+  slack: "slack"
+  virtru: "virtru"
+  jetbrains: "jetbrains"
+  lucid: "lucidchart"
+  gsuite: "gsuite"
+  zscaler: "zscaler"
+  aviatrix: "aviatrix"
+  digicert: "digicert"
+  crowdstrike: "crowdstrike"
+  duo: "duo"
+  meraki: "meraki"
+
+
+
+
+tools:
+  common:
+    email: "email"
+  Virtru:
+    email_col: "email address"
+    status_col: "activation"
+    status_val: ["activated"]
+    role_col: "admin role"
+    role_val: ['super administrator']
+    filename: "Virtru"
+  Slack:
+    email_col: "email"
+    status_col: "status"
+    status_val: ["member"]
+    admin_val: ["admin", "owner"]
+    bot_val: ["bot"]
+    deactivated: ["deactivated"]
+    filename: "slack"
+  Lucid:
+    email_col: "email"
+    status_col: "lucidchart license"
+    status_val: ["yes"]
+    role_col: "role"
+    role_val: ["team admin", "account owner", "multiple"]
+    filename: "lucid"
+  Gsuite:
+    email_col: "email address [required]"
+    status_col: "status [read only]"
+    status_val: ["active"]
+    filename: "gsuite"
+  Zscaler:
+    email_col: "email-id"
+    status_col: "status"
+    status_val: ["enabled"] 
+    role_col: "department"
+    role_val: ["service admin"]
+    filename: "zscaler"
+  Digicert:
+    email_col: "email"
+    status_col: "status"
+    status_val: ["active"]
+    role_col: "access_roles.0.name"
+    role_val: ["administrator"]
+    filename: "digicert"
+  Crowdstrike:
+    email_col: "email"
+    role_col: "roles"
+    role_val: ["administrator"]
+    filename: "crowdstrike"
+  Duo:
+    email_col: "username"
+    status_col: "status"
+    status_val: ["active"]
+    filename: "duo"
+    email_val: "@goevive.com"
+  Meraki:
+    email_col: "email (username)"
+    role_col: "account type"
+    role_val: ["administrator"]
+    filename: "meraki"
+  Aviatrix:
+    email_col: "user_name"
+    filename: "aviatrix"
+  Datadog:
+    site: "datadoghq.com"
+    page_size: 500
+    active_filter: "Active"
+    role_val: ["datadog admin role"]
+    filename: "datadog"
+  Jetbrains:
+    filename: "jetbrains"
+    email_col: "email"
+  Kibana:
+    email_val: "@goevive.com"
+    filename: "kibana"
+  AWS:
+    header: ['Username', 'Policies', 'Groups', 'Group Policies', 'MFA']
