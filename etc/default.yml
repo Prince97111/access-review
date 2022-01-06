@@ -1,6 +1,5 @@
-name: "Garg"
-
 default_email: "@goevive.com" 
+default_env: "dev"
 
 service_accounts: [
   'datareceipts@goevive.com',
@@ -99,7 +98,33 @@ service_accounts: [
   'admin@1337914.zscalerthree.net',
   'admin@goevive.com',
   'zscaler.se@goevive.com',
-  'uat_master@goevive.com'
+  'uat_master@goevive.com',
+  'new.testuser@goevive.com',
+  'tester.tester@goevive.com',
+  'testing.user@goevive.com',
+  'admin',
+  'bqtest',
+  'eviveshelf_admin',
+  'eviveshelf_user',
+  'kibana',
+  'logstash',
+  'shiro.test@goevive.com',
+  'shiro.testing@evivehealth.com',
+  'test.test1@evivehealth.com',
+  'test.user12@goevive.com',
+  'test.user1@goevive.com',
+  'test1050role18user1@goevive.com',
+  'test1@evivehealth.com',
+  'test7777role77user7@goevive.com',
+  'testadmin@goevive.com',
+  'testing.user12@goevive.com',
+  'testing.user1@goevive.com',
+  'testing@goevive.com',
+  'testuser2@evivehealth.com',
+  'testuser@goevive.com',
+  'testusern@goevive.com',
+  'testing@goevive.com'
+
 ]
 
 
@@ -118,6 +143,14 @@ function_redirection:
   crowdstrike: "crowdstrike"
   duo: "duo"
   meraki: "meraki"
+
+
+command_parser: 
+  aws: "aws"
+  datadog: "datadog"
+  kibana: "kibana"
+  ibot: "ibot"
+  other: "other"
 
 
 
@@ -191,11 +224,26 @@ tools:
     active_filter: "Active"
     role_val: ["datadog admin role"]
     filename: "datadog"
+    status_val: "Active"
+    secret_name: "arn:aws:secretsmanager:us-east-1:703569030910:secret:dev-event-data-datadog-api-and-app-keys-HDT78w"
   Jetbrains:
     filename: "jetbrains"
     email_col: "email"
   Kibana:
     email_val: "@goevive.com"
     filename: "kibana"
+    dev_env: "dev"
+    prod_env: "prod"
+    uat_env: "uat"
+  IBOT:
+    dev_plugin: ["LDAP", "IBOT", "SHIRO"]
+    prod_plugin: ["IBOT", "SHIRO"]
+    uat_plugin: ["IBOT", "SHIRO"]
+    dev_env: "dev"
+    prod_env: "prod"
+    uat_env: "uat"
+    dev_filename: "dev"
+    uat_filename: "uat"
+    prod_filename: "prod"
   AWS:
     header: ['Username', 'Policies', 'Groups', 'Group Policies', 'MFA']

@@ -1,11 +1,13 @@
-import yaml, argparse, os, logging
+import logging
+logging.basicConfig(filename="main.log", filemode='w', level=logging.DEBUG)
+import yaml, argparse, os, json
 import common
 import boto3
 from datadog_api_client.v2 import ApiClient, Configuration
 from datadog_api_client.v2.api.users_api import UsersApi
 from datadog_api_client.v2.api.roles_api import RolesApi
+from evive_connectors import cassandra_connector as c
 
-logging.basicConfig(filename="main.log")
 
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "etc")
 default_conf = yaml.safe_load(open(os.path.join(config_path, "default.yml")))
@@ -37,8 +39,7 @@ class Filter():
 
         if self.app_name in default_conf.get('function_redirection') :
             return getattr(self, default_conf.get('function_redirection')[self.app_name], lambda: default)()
-        else:
-            print(default)
+        else:            
             logging.error(default)
             return
 
@@ -53,6 +54,9 @@ class Filter():
 
         if self.fields:	
 		# get index for email field
+
+            logging.debug("finding index for required columns")
+
             email_index = common.getIndex(confs['email_col'], self.fields)
             
             for row in self.rows:
@@ -89,6 +93,7 @@ class Filter():
     def crowdstrike(self):
         confs = default_conf.get('tools')['Crowdstrike']
         if self.fields:
+            logging.debug("finding index for required columns")
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
 
@@ -121,6 +126,7 @@ class Filter():
     def digicert(self):
         confs = default_conf.get('tools')['Digicert']
         if self.fields:
+            logging.debug("finding index for required columns")
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
 
@@ -160,6 +166,7 @@ class Filter():
     def zscaler(self):
         confs = default_conf.get('tools')['Zscaler']
         if self.fields:
+            logging.debug("finding index for required columns")
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
 
@@ -199,6 +206,7 @@ class Filter():
         confs = default_conf.get('tools')['Duo']
 
         if self.fields:
+            logging.debug("finding index for required columns")
 
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
@@ -230,6 +238,7 @@ class Filter():
         confs = default_conf.get('tools')['Meraki']
 
         if self.fields:
+            logging.debug("finding index for required columns")
 
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
@@ -256,30 +265,52 @@ class Filter():
             logging.error("File format is not valid")
 
     
-    def kibana(self, access_key, secret_key, session_token, pool_id, env):
+    def ibot(self):
+        confs = default_conf.get('tools')['IBOT']
+
+        plugins = []
+        
+        if default_conf['default_env'] == confs['dev_env']:
+            plugins = confs['dev_plugin']
+            filename = confs['dev_filename']
+        elif default_conf['default_env'] == confs['uat_env']:
+            plugins = confs['uat_plugin']
+            filename = confs['uat_filename']
+        elif default_conf['default_env'] == confs['prod_env']:
+            plugins = confs['prod_plugin']
+            filename = confs['prod_filename']
+
+
+        for plugin in plugins:
+            users = common.get_ibot_users(plugin)
+            users.sort()
+            common.compareFile(filename+'_'+plugin, users, self.active_users)
+            
+        
+
+    def kibana(self, pool_id):
 
         confs = default_conf.get('tools')['Kibana'] 
 
         try:
+            logging.debug("connecting aws cognito...")
             cognito_client = boto3.client(
                 'cognito-idp',
-                region_name = 'us-east-1',
-                aws_access_key_id = access_key, 
-                aws_secret_access_key = secret_key, 
-                aws_session_token = session_token) 
+                region_name = 'us-east-1') 
 
             output = cognito_client.list_users(UserPoolId = pool_id)
             active = []
             inactive = []
 
+            env = default_conf.get('default_env')
+
             for value in output["Users"]:
-                if env.lower() == 'dev':
+                if  env.lower() == confs['dev_env']:
                     username = value['Username'].split('_')[1]
-                elif env.lower() == 'prod' or env.lower() == 'uat':
+                elif env.lower() == confs['prod_env'] or env.lower() == confs['uat_env']:
                     username = value['Username']+confs['email_val']
                 else:
                     logging.error("Environment not recognized ")
-                    print("Environment not recognized ")
                     break
                     
                 if value['Enabled']:
@@ -297,13 +328,10 @@ class Filter():
 
         
 
-    def aws(self, access_key, secret_key, session_token):
+    def aws(self):
         
         confs = default_conf.get('tools')['AWS']
-        # session = boto3.Session(profile_name="dev-iam")
-        # iam = session.client("iam")
-
-
+        
         """
         creating Boto3 client using AWS command line credentials
         fetching users, policies, mfa, groups and group policies
@@ -311,54 +339,51 @@ class Filter():
         """
 
         try:
-            iam_client = boto3.client(
-                'iam',
-                aws_access_key_id = access_key, 
-                aws_secret_access_key = secret_key, 
-                aws_session_token = session_token) 
+            logging.debug("connecting aws iam...")
+           
+            iam_client = boto3.client('iam')
+                
+            users = iam_client.list_users()
+            final_output  = []
+            for key in users['Users']:
+                
+                username = key['UserName']
+
+                #get user policies
+                policies =  self.get_user_policies(username, iam_client)
+
+                #get user groups
+                groups_list =  iam_client.list_groups_for_user(UserName=username)
+                user_groups = []
+                for group in groups_list['Groups']:
+                    user_groups.append(group['GroupName'])
+                
+                if len(user_groups):
+                    groups = ",".join(user_groups)
+                    groups_policies = self.get_group_policies(groups, iam_client)
+                else:
+                    groups = "-"
+                    groups_policies = "-"
+
+                #mfa_status
+                mfa_devices = iam_client.list_mfa_devices(UserName=username)
+
+                if not len(mfa_devices['MFADevices']):
+                    mfa = False   
+                else:
+                    mfa = True
+                
+                final_output.append([username, policies, groups, groups_policies, mfa])
+
+            
+            file_header = [confs['header']] 
+            common.writeAWSFile(file_header, final_output)
+
+
         except Exception as error:
             logging.exception("Failed connecting to AWS Error: %s", error)
             
-        users = iam_client.list_users()
-        final_output  = []
-        for key in users['Users']:
-            
-            username = key['UserName']
-
-            #get user policies
-            policies =  self.get_user_policies(username, iam_client)
-
-            #get user groups
-            groups_list =  iam_client.list_groups_for_user(UserName=username)
-            user_groups = []
-            for group in groups_list['Groups']:
-                user_groups.append(group['GroupName'])
-            
-            if len(user_groups):
-                groups = ",".join(user_groups)
-                groups_policies = self.get_group_policies(groups, iam_client)
-            else:
-                groups = "-"
-                groups_policies = "-"
-
-            #mfa_status
-            mfa_devices = iam_client.list_mfa_devices(UserName=username)
-
-            if not len(mfa_devices['MFADevices']):
-                mfa = False   
-            else:
-                mfa = True
-            
-            final_output.append([username, policies, groups, groups_policies, mfa])
-
-        
-        file_header = [confs['header']] 
-        common.writeAWSFile(file_header, final_output)
-        
-
-            
-
-
+   
     def get_user_policies(self, username, iam_client):
 
         """
@@ -405,7 +430,7 @@ class Filter():
         
         return ",".join(policy_names)
 
-    def datadog(self, app_key, api_key):
+    def datadog(self):
         
         """
         Setting environment variables
@@ -415,45 +440,59 @@ class Filter():
         confs = default_conf.get('tools')['Datadog']
 
         try:
-            
-            #setting enviroment variables
-            os.environ['DD_SITE'] = confs['site']
-            os.environ['DD_API_KEY'] = api_key
-            os.environ['DD_APP_KEY'] = app_key
+
+            secret_manager = boto3.client('secretsmanager')
+
+            secrets = secret_manager.get_secret_value(
+                SecretId=confs['secret_name'],
+                region_name='us-east-1'
+
+            )
+            if 'SecretString' in secrets:
+            # if True:
+                datadog_keys  = json.loads(secrets['SecretString']) 
+
+                #setting enviroment variables
+                os.environ['DD_SITE'] = confs['site']
+                os.environ['DD_API_KEY'] = datadog_keys['DATADOG_API_KEY']
+                os.environ['DD_APP_KEY'] = datadog_keys['DATADOG_APP_KEY'].lower()
 
 
-            active = []
-            admins = []
+                active = []
+                admins = []
 
-            
-            configuration = Configuration()
-            with ApiClient(configuration) as api_client:
+                logging.debug("calling datadog API...")
+                configuration = Configuration()
+                with ApiClient(configuration) as api_client:
 
-                #calling roles API
-                role_api_instance = RolesApi(api_client)
-                role_res = role_api_instance.list_roles()
+                    #calling roles API
+                    role_api_instance = RolesApi(api_client)
+                    role_res = role_api_instance.list_roles()
 
-                for key in role_res['data']:
-                    if key.attributes.name.lower() in confs['role_val']:
-                        admin_role_id = key.id
-                        break
+                    for key in role_res['data']:
+                        if key.attributes.name.lower() in confs['role_val']:
+                            admin_role_id = key.id
+                            break
+                    
+                    #getting users for admin role
+                    admin_res = role_api_instance.list_role_users(role_id=admin_role_id)
+
+                    for key in admin_res['data']:
+                        if key.attributes.status == confs['status_val']:
+                            admins.append(key.attributes.email)
+
+                    #calling users API
+                    api_instance = UsersApi(api_client)
+                    response = api_instance.list_users(page_size = confs['page_size'], filter_status = confs['active_filter'])
                 
-                #getting users for admin role
-                admin_res = role_api_instance.list_role_users(role_id=admin_role_id)
-
-                for key in admin_res['data']:
-                    admins.append(key.attributes.email)
-
-                #calling users API
-                api_instance = UsersApi(api_client)
-                response = api_instance.list_users(page_size = confs['page_size'], filter_status = confs['active_filter'])
-            
-                for key in response['data']:
-                    if key.attributes.email not in admins:
-                        active.append(key.attributes.email)
-            
-            common.compareFile(confs['filename'], active, self.active_users)
-            common.compareFile(confs['filename']+"_admin", admins, self.active_users)
+                    for key in response['data']:
+                        if key.attributes.email not in admins:
+                            active.append(key.attributes.email)
+                
+                common.compareFile(confs['filename'], active, self.active_users)
+                common.compareFile(confs['filename']+"_admin", admins, self.active_users)
+            else:
+                logging.debug("No secret found")
                     
         except Exception as error:
             logging.exception("Failed creating datadog report Error: %s", error)
@@ -466,7 +505,7 @@ class Filter():
         confs = default_conf.get('tools')['Gsuite']
 
         if self.fields:
-
+            logging.debug("finding index for required columns")
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
 
@@ -498,6 +537,7 @@ class Filter():
     def lucidchart(self):
         confs = default_conf.get('tools')['Lucid']
         if self.fields:
+            logging.debug("finding index for required columns")
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
 
@@ -535,7 +575,7 @@ class Filter():
         confs = default_conf.get('tools')['Virtru']
         if self.fields:
             
-
+            logging.debug("finding index for required columns")
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
             
@@ -583,6 +623,7 @@ class Filter():
     def slack(self):
         confs = default_conf.get('tools')['Slack']
         if self.fields:
+            logging.debug("finding index for required columns")
             # get index for email field
             email_index = common.getIndex(confs['email_col'], self.fields)
 
@@ -620,24 +661,25 @@ class Filter():
 
 
 if __name__ == "__main__":
+
+
+    command_parser = default_conf.get('command_parser')
     
     #creating Parent parser
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(help='sub-command help')
 
+    logging.debug("Starting to get required arguments")
+
 
     #adding parser_a for AWS
-    parser_a = subparsers.add_parser('aws', help='To review aws iam users')
-    
-    parser_a.add_argument('--access_key', help='AWS Access Key ID', dest = "access_key", required=True)
-    parser_a.add_argument('--secret_key', help='AWS Secret Access Key', dest = "secret_key", required=True)
-    parser_a.add_argument('--session_token', help='AWS Session Token', dest = "session_token", required=True)
-    parser_a.add_argument('--users_file', help='''active users CSV file path
-                            ex: /users/home/abc/active_users.csv''', dest = "active_users_file", required=True)
-    
+    parser_a = subparsers.add_parser(command_parser['aws'], help='To review aws iam users')
+    parser_a.set_defaults(which=command_parser['aws'])
 
     #adding parser_b for Other files
-    parser_b = subparsers.add_parser('other', help='To review other tools')
+    parser_b = subparsers.add_parser(command_parser['other'], help='To review other tools')
+    parser_b.set_defaults(which=command_parser['other'])
+
     parser_b.add_argument('--app_name', help='''app name
                             ex: slack''', dest = "application_name", required=True)
     parser_b.add_argument('--app_file', help='''app users CSV file path
@@ -646,61 +688,77 @@ if __name__ == "__main__":
                             ex: /users/home/abc/active_users.csv''', dest = "active_users_file", required=True)
 
     #adding parser_c for Datadog
-    parser_c = subparsers.add_parser('datadog', help='To review datadog users')
-    parser_c.add_argument('--app_key', help='Application key', dest = "app_key", required=True)
-    parser_c.add_argument('--api_key', help='Api key', dest = "api_key", required=True)
+    parser_c = subparsers.add_parser(command_parser['datadog'], help='To review datadog users')
+    parser_c.set_defaults(which=command_parser['datadog'])
+
     parser_c.add_argument('--users_file', help='''active users CSV file path
                             ex: /users/home/abc/active_users.csv''', dest = "active_users_file", required=True)
 
 
-    #adding parser_d for AWS
-    parser_d = subparsers.add_parser('kibana', help='To review kibana users')
+    #adding parser_d for AWS Kibana
+    parser_d = subparsers.add_parser(command_parser['kibana'], help='To review kibana users')
+    parser_d.set_defaults(which=command_parser['kibana'])
     
-    parser_d.add_argument('--access_key', help='AWS Access Key ID', dest = "access_key", required=True)
-    parser_d.add_argument('--secret_key', help='AWS Secret Access Key', dest = "secret_key", required=True)
-    parser_d.add_argument('--session_token', help='AWS Session Token', dest = "session_token", required=True)
     parser_d.add_argument('--pool_id', help='''Pool ID''', dest = "pool_id", required=True)
-    parser_d.add_argument('--env', help='''Environment''', dest = "env", required=True)
     parser_d.add_argument('--users_file', help='''active users CSV file path
+                            ex: /users/home/abc/active_users.csv''', dest = "active_users_file", required=True)
+
+    
+    parser_e = subparsers.add_parser(command_parser['ibot'], help='To review IBOT access')
+    parser_e.set_defaults(which=command_parser['ibot'])
+
+    parser_e.add_argument('--users_file', help='''active users CSV file path
                             ex: /users/home/abc/active_users.csv''', dest = "active_users_file", required=True)
     
 
     args = vars(parser.parse_args())
 
-    if args.get('env') and args.get('pool_id') and args.get('access_key') and args.get('active_users_file') and args.get('secret_key') and args.get('session_token'):
+    if args.get('which') ==  command_parser['aws']:
 
         #creating class object and  calling AWS function
 
+        logging.debug("Calling AWS function ...")
         object = Filter(active_users_file = args.get('active_users_file'))
-        object.kibana(args.get('access_key'), args.get('secret_key'), args.get('session_token'), args.get('pool_id'), args.get('env'))
-    
-    elif args.get('access_key') and args.get('active_users_file') and args.get('secret_key') and args.get('session_token'):
+        object.aws()
 
-        #creating class object and  calling AWS function
-
-        object = Filter(active_users_file = args.get('active_users_file'))
-        object.aws(args.get('access_key'), args.get('secret_key'), args.get('session_token'))
-
-    elif args.get('app_key') and args.get('api_key') and args.get('active_users_file'):
-
-        #creating class object and  calling Datadog function
-
-        object = Filter(active_users_file = args.get('active_users_file'))
-        object.datadog(args.get('app_key'), args.get('api_key'))
-
-    elif args.get('application_name') and args.get('application_file') and args.get('active_users_file'):
+    elif args.get('which') ==  command_parser['other']:
         
         #creating class object and  calling redirect function
 
         if os.path.isfile(args.get('application_file')):
             if os.path.isfile(args.get('active_users_file')):
+                logging.debug("calling %s function", args.get('application_name'))
                 object = Filter(app_name = args.get('application_name'), app_file = args.get('application_file'), active_users_file = args.get('active_users_file'))
                 object.redirect()
             else:
                 logging.error("%s file not exists ", args.get('active_users_file'))    
         else:
-            logging.error("%s file not exists ", args.get('application_name'))
+            logging.error("%s file not exists ", args.get('application_name')) 
+    
+    elif args.get('which') ==  command_parser['datadog']:
+
+        #creating class object and  calling Datadog function
+        
+        logging.debug("Calling datadog function ...")
+        object = Filter(active_users_file = args.get('active_users_file'))
+        object.datadog()
+
+
+    elif args.get('which') ==  command_parser['kibana']:
+
+        #creating class object and  calling AWS function
+        logging.debug("Calling kibana function ...")
+        object = Filter(active_users_file = args.get('active_users_file'))
+        object.kibana(args.get('pool_id'), args.get('env'))
+    
+    
+    elif args.get('which') ==  command_parser['aws']:
+
+        #creating class object and  calling IBOT function
+        logging.debug("Calling ibot function ...")
+        object = Filter(active_users_file = args.get('active_users_file'))
+        object.ibot()
     else:
-        print("Wrong command line arguments")
+        logging.debug("Wrong command line arguments")
 
 
